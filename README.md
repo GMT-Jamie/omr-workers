@@ -238,6 +238,9 @@ non-root(uid 10001)、`read_only: true`、只有 `/tmp` 是 tmpfs、`cap_drop: A
 
 ## 還沒做
 
+**逐項的待辦、卡住的決定、與踩過的坑都在 [TODO.md](TODO.md)** —— 接手前先讀那一份。
+下面是摘要。
+
 - `audiveris-worker`。乾淨印刷譜與掃描 PDF 是它的主場(而 homr 是為手機拍攝最佳化的),
   而且 Audiveris 有完整的符號辨識管線,`<sound tempo>` 是它真的會偵測的東西。
 - **容器裡從來沒跑過。** `Dockerfile` 與 compose 都還沒 build 過,所以斷網驗證、
