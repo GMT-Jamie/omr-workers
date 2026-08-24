@@ -1,0 +1,11 @@
+# 這個 repo 的東西**全部要在 Linux 容器裡跑**,所以換行一律 LF。
+#
+# 沒有這個檔案的話,在 Windows 上 clone 會拿到 CRLF,而:
+#   - `.sh` 帶 CRLF → `bad interpreter: /usr/bin/env bash^M: no such file or directory`
+#   - `Dockerfile` 的 heredoc（`RUN python - <<'PY'`）帶 CRLF → Python 語法錯誤
+#   - `.py` 帶 CRLF 通常沒事,但沒有理由讓它不一致
+#
+# 症狀跟「腳本寫錯了」一模一樣,而且只在別人的機器上出現。
+* text=auto eol=lf
+*.png binary
+*.onnx binary

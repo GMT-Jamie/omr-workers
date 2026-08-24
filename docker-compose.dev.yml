@@ -1,0 +1,19 @@
+# 開發用的 override。**只在開發機上用**（Win11 + Docker Desktop）。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# 它做兩件正式組態刻意不做的事：把 port 映射到 host（smoke_test.sh 要打得到），
+# 以及讓容器連得到外網（`internal: true` 的網路連 host 都到不了，而 build 完之後
+# 開發時偶爾需要進容器裝東西除錯）。
+
+services:
+  homr-worker:
+    ports:
+      # 只綁 127.0.0.1 —— 綁 0.0.0.0 等於把一個沒有認證、單頁吃 20 秒 CPU 的
+      # 端點掛到同網段所有人面前。
+      - "127.0.0.1:8081:8080"
+    networks: [omr-internal, omr-dev]
+
+networks:
+  omr-dev:
+    internal: false

@@ -1,0 +1,53 @@
+# 正式用的組態。**不對外開任何 port。**
+#
+# 拓樸（spec §6/§7 假設 3ml 也在 compose 裡，實際不是，所以邊界往外移了一層）：
+#
+#   瀏覽器 ──HTTPS──> IIS / Windows Server 2019（3ml，站台）
+#                        │
+#                        │ Hyper-V Internal Switch（只通 host ↔ VM，VM 連不到外網）
+#                        ▼
+#                     Linux VM ── docker compose
+#                        ├── homr-worker
+#                        └── audiveris-worker（尚未實作）
+#
+# Server 2019 **跑不了 Linux 容器**（WSL2 從 Server 2022 才支援、Docker Desktop
+# 不支援任何 Windows Server、LCOW 已移除），所以容器住在同一台機器上的 Hyper-V
+# Linux VM 裡。用 Internal Switch 而不是 External/NAT：那種 switch 只通 host ↔ VM，
+# 於是「runtime 無 outbound 網路」是 hypervisor 層級的保證，比 compose 設定更強。
+#
+# build 需要外網（`homr --init` 抓 GitHub releases），所以流程是
+# 「開 External switch → build → 換回 Internal switch → 跑」。
+
+services:
+  homr-worker:
+    build: ./homr-worker
+    environment:
+      JOB_TIMEOUT_SEC: "600"
+      MAX_CONCURRENCY: "1"
+      MAX_UPLOAD_MB: "20"
+    networks: [omr-internal]
+    deploy:
+      resources:
+        limits:
+          # 4 GB 是 spec §7 的數字。實測 onnxruntime 這條路比 torch 省很多，
+          # 之後照 bench 的實際 RSS 調 —— 但先寬鬆，OOM 被 killer 殺掉的症狀
+          # （容器無聲重啟）比慢難查太多。
+          memory: 4g
+          cpus: "2"
+    read_only: true
+    tmpfs:
+      # 唯一可寫的地方。暫存圖片、輸出、與所有相依的快取都落在這裡（Dockerfile 把
+      # HOME / XDG_CACHE_HOME / TMPDIR 全部指到 /tmp）。
+      #
+      # exec 是必要的：pip 裝的原生擴充（onnxruntime、opencv）不會從 /tmp 執行，
+      # 但有些套件會把 .so 解到快取再 dlopen —— 拿掉 exec 之後那種失敗指不到成因。
+      - /tmp:exec,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+networks:
+  omr-internal:
+    internal: true

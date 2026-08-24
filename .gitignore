@@ -1,0 +1,23 @@
+# 樣本圖與 OMR 輸出**永遠不進版控**。
+#
+# 這是一個公開的 AGPL repo，而拿來測試的樂譜幾乎都是有版權的（實測那份第一頁頁腳
+# 就寫著「未經編者及原作者同意，請勿轉載」）。把圖放進來等於在公開散布那份樂譜，
+# 而產出的 .musicxml 是它的衍生資料，同樣不行。
+#
+# 所以 smoke_test.sh 與 bench.sh 都**吃路徑參數**，樣本自己放。
+samples/*
+!samples/.gitkeep
+*.musicxml
+*.mxl
+*_teaser.png
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 本機工作區
+work/
+out/
+*.log

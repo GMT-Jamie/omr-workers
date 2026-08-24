@@ -1,0 +1,12 @@
+# 全部 pin 到 ==，理由見 spec §6：build 要可重現。
+#
+# homr 0.7.0 的相依**沒有 torch** —— 它跑 onnxruntime。所以這個 image 是幾百 MB
+# 級而不是幾 GB 級（權重 157 MB：segnet 57 + encoder 53 + decoder 47，另外 rapidocr
+# 的 OCR 權重 32 MB 直接內建在 wheel 裡）。
+#
+# homr 自己的相依由它的 metadata 決定，這裡只 pin 頂層那幾個；要完全鎖死的話
+# 下一步是 pip-compile 出一份 hash 齊全的 lock 檔（README 有記）。
+homr==0.7.0
+fastapi==0.141.1
+uvicorn==0.52.4
+python-multipart==0.0.32
