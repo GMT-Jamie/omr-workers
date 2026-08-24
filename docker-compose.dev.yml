@@ -3,31 +3,22 @@
 #
 #   # 在 WSL 裡面跑，不是 Git Bash：含中文的路徑當參數傳給 wsl.exe 會編碼壞掉
 #   cd "/mnt/c/path/to/omr-workers"
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 #
-# 它做兩件正式組態刻意不做的事：把 port 映射到 host（smoke_test.sh 要打得到），
-# 以及讓容器連得到外網（`internal: true` 的網路連 host 都到不了，而 build 完之後
-# 開發時偶爾需要進容器裝東西除錯）。
+# ⚠️ **`ports` 在 compose 裡預設是相加的，不是覆寫的。** base 已經有一條
+# `${OMR_BIND:-127.0.0.1}:8081:8080`，這裡再寫一條普通的就是同一個 port 綁兩次
+# → 啟動失敗。所以用 `!override`（取代整個屬性），不是 `!reset`（那是清空）。
 
 services:
   audiveris-worker:
-    ports:
-      # 只綁 127.0.0.1 —— 綁 0.0.0.0 等於把一個沒有認證、整段佔用 CPU 的端點
-      # 掛到同網段所有人面前。
-      #
-      # ⚠️ **8081 是站台設定裡寫的那個 port**（appsettings 的 Omr:WorkerUrl）。
-      # 兩個 worker 共用它是刻意的：切換引擎不必動站台的設定，只要換啟動哪一個。
+    # 開發機沒有 .env，base 的 OMR_BIND 本來就會退回 127.0.0.1 —— 結果一樣。
+    # 明寫出來是為了讓「開發機只綁 loopback」成為讀得到的事實，而不是預設值的副作用。
+    ports: !override
       - "127.0.0.1:8081:8080"
-    networks: [omr-internal, omr-dev]
 
   # 備選引擎。只有 `--profile fallback` 時才會起來（見 docker-compose.yml）。
   # ⚠️ 它跟 audiveris-worker **搶同一個 8081** —— 兩個一起跑會撞 port，那是刻意的：
   # 站台同時只該連到一個引擎。
   homr-worker:
-    ports:
+    ports: !override
       - "127.0.0.1:8081:8080"
-    networks: [omr-internal, omr-dev]
-
-networks:
-  omr-dev:
-    internal: false

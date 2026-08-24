@@ -41,6 +41,18 @@ services:
       JOB_TIMEOUT_SEC: "600"
       MAX_CONCURRENCY: "1"
       MAX_UPLOAD_MB: "20"
+    ports:
+      # ⚠️ **綁在 VM 的內部 switch 位址上，不要綁 0.0.0.0。**
+      #
+      # 正式機跑起來時 VM 只有內部 switch 那張網卡，所以 0.0.0.0 看起來也安全 ——
+      # 但**裝 docker 與 build image 的那個階段是接 External switch 的**（見 M10 的
+      # 步驟），那時候 0.0.0.0 等於把一個沒有認證的端點掛到公司網段上。
+      #
+      # 值放在 VM 上的 `.env`（不進版控）：
+      #     OMR_BIND=192.168.x.x
+      # 沒設的話退回 127.0.0.1 —— **寧可連不到也不要意外對外**。連不到的症狀很吵
+      # （代理回 UNREACHABLE），對外曝光的症狀是沒有症狀。
+      - "${OMR_BIND:-127.0.0.1}:8081:8080"
     networks: [omr-internal]
     deploy:
       resources:
@@ -112,4 +124,18 @@ services:
 
 networks:
   omr-internal:
-    internal: true
+    # 🔴 **這裡刻意不是 `internal: true`，而那不是放鬆，是修正一個會讓部署白做的錯。**
+    #
+    # `internal: true` 的網路上**不能發佈 port，而且 docker 不報錯** —— 它照收
+    # `ports:`、`docker inspect` 顯示 `Ports=map[8080/tcp:[]]`（空的），然後主機
+    # 怎麼打都不通。實測過。於是 C# 代理永遠連不到 worker，而這件事只有在 VM 建好、
+    # docker 裝好、image build 完之後才會發現。
+    #
+    # 「runtime 無 outbound 網路」這個保證改由 **Hyper-V 的 Internal switch** 提供
+    # ——那本來就是 README〈部署拓樸〉選它的理由，而且**比 compose 設定更強**：
+    # VM 根本沒有通往網際網路的路由，docker 的 bridge 想 MASQUERADE 也沒有出口。
+    # compose 這一層的 `internal: true` 只是重複，而且跟「主機要打得到」直接衝突。
+    #
+    # ⚠️ 代價要講清楚：**開發機上（WSL / External switch）容器是連得到外網的。**
+    # 所以 §9-6 那項驗收在開發機只能用 compose 的 internal 網路模擬，真正的斷網
+    # 要在正式機換成 Internal switch 之後重驗一次。M10 的步驟裡有這一項。

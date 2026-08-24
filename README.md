@@ -151,8 +151,8 @@ homr-worker 走 subprocess,每個請求是一個新行程,所以沒有常駐的�
                      │ Hyper-V Internal Switch(只通 host ↔ VM,VM 連不到外網)
                      ▼
                   Linux VM ── docker compose
-                     ├── homr-worker
-                     └── audiveris-worker(未實作)
+                     ├── audiveris-worker  ← 主引擎
+                     └── homr-worker       ← 備選,profiles: ["fallback"],預設不啟動
 ```
 
 **Windows Server 2019 跑不了 Linux 容器**,這不是設定問題:WSL2 的 Server 支援從
@@ -163,6 +163,11 @@ Windows Server、LCOW 早已移除。Server 2019 內建的 Docker 只能跑 Wind
 用 **Internal Switch** 而不是 External/NAT:那種 switch 只通 host ↔ VM,於是
 「runtime 無 outbound 網路」是 hypervisor 層級的保證,比 compose 設定更強。
 build 需要外網,所以流程是 **開 External switch → build → 換回 Internal switch → 跑**。
+
+⚠️ **compose 那一層刻意不設 `internal: true`**,而那不是放鬆。`internal: true` 的
+網路上**不能發佈 port,而且 docker 不報錯** —— 它照收 `ports:`、`docker inspect`
+顯示 `Ports=map[8080/tcp:[]]`(空的),然後主機怎麼打都不通。實測過。而主機正是
+C# 代理所在的地方,所以那個設定會讓整條路不通。隔離交給上面那個 Internal switch。
 
 瀏覽器**不能**直接打 worker:頁面是 HTTPS 而 worker 是私有 IP 上的純 HTTP,
 那是 mixed content,瀏覽器直接封鎖。中間那層 C# 代理同時是認證與配額的閘門。

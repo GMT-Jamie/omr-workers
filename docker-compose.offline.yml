@@ -1,0 +1,28 @@
+# 只為了驗 spec §9-6（斷網下 /transcribe 仍正常）。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.offline.yml up -d
+#   # 打不到 port 是預期的，要從容器裡面驗：
+#   cat page.png | docker compose -f docker-compose.yml -f docker-compose.offline.yml \
+#     exec -T audiveris-worker python3 -c '…'
+#
+# 它把網路關成 `internal: true` 並拿掉 port 對應，模擬正式機換成 Hyper-V Internal
+# switch 之後的狀態。
+#
+# ⚠️ **為什麼要獨立一個檔，而不是讓正式的 compose 就是這樣**：`internal: true` 的
+# 網路上**不能發佈 port，而且 docker 不報錯** —— 它照收 `ports:`、`docker inspect`
+# 顯示 `Ports=map[8080/tcp:[]]`（空的），然後主機怎麼打都不通。實測過。正式機需要
+# 主機打得到（C# 代理就在那台），所以真正的隔離交給 hypervisor，那本來就更強。
+#
+# ⚠️ **這只是模擬。** 正式機換成 Internal switch 之後要**再驗一次**，因為那時候
+# 斷的是 VM 的路由，不是 docker 的網路 —— 兩者失敗的方式不一定一樣。
+
+services:
+  audiveris-worker:
+    ports: !reset null
+
+  homr-worker:
+    ports: !reset null
+
+networks:
+  omr-internal:
+    internal: true
