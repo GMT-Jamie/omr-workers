@@ -19,7 +19,59 @@
 # 「開 External switch → build → 換回 Internal switch → 跑」。
 
 services:
+  # ─── 主引擎 ───
+  #
+  # **audiveris 是現在實際在用的那一個**（決定於 2026-08-24）。同一批三頁鋼琴譜、
+  # 同一支量測工具的實測：
+  #
+  #                    homr            audiveris
+  #   壞小節           28/66 (42%)     19/66 (29%)
+  #   連音             0（引擎刪了 11 個小節）  5 保留
+  #   譜上的速度記號   讀不到          ♩=179 讀到了
+  #   單頁（4 核）     95.9 秒         4.1 秒
+  #   單頁（24 核）    13.9 秒         4.6 秒
+  #   image           1.51 GB         約 400 MB
+  #   PDF             ✗               ✓
+  #
+  # ⚠️ **audiveris 幾乎不吃平行度**（24 核 4.6 秒、4 核 4.1 秒、2 核 5.2 秒），
+  # 所以它不需要 homr 那種核心數。正式機的 vCPU 因此可以訂得低很多。
+  audiveris-worker:
+    build: ./audiveris-worker
+    environment:
+      JOB_TIMEOUT_SEC: "600"
+      MAX_CONCURRENCY: "1"
+      MAX_UPLOAD_MB: "20"
+    networks: [omr-internal]
+    deploy:
+      resources:
+        limits:
+          # JVM 一個行程。spec 原本猜 -Xmx5g，但實測單頁只要 4 秒而且沒有調過堆積
+          # 大小 —— 先給 2 GB，OOM 的話再往上調（OOM 被 killer 殺掉的症狀是容器
+          # 無聲重啟，比慢難查太多，所以寧可寬鬆）。
+          memory: 2g
+          # 給 2 顆就夠：實測 2 核 5.2 秒、4 核 4.1 秒、24 核 4.6 秒 —— 曲線是平的。
+          cpus: "2"
+    read_only: true
+    tmpfs:
+      # Audiveris 會往 $HOME 底下寫設定與快取，而 Dockerfile 把 HOME 指到這裡。
+      # exec 的理由同 homr-worker：JNA 會把 .so 解到快取再 dlopen。
+      - /tmp:exec,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+  # ─── 備選引擎（目前停用）───
+  #
+  # 留著不刪：homr 的宣稱強項是**手機拍攝**，而我們到現在**一張手機拍的譜都沒有**，
+  # 所以那個問題還沒有證據可判（TODO.md 的 D2）。上面那組數字全部來自乾淨數位排版
+  # 的譜 —— 那正好是 audiveris 的主場、homr 的弱項。
+  #
+  # 要啟用：把下面的 profiles 那兩行拿掉，或跑
+  #   docker compose --profile fallback up -d
   homr-worker:
+    profiles: ["fallback"]
     build: ./homr-worker
     environment:
       JOB_TIMEOUT_SEC: "600"

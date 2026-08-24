@@ -10,10 +10,21 @@
 # 開發時偶爾需要進容器裝東西除錯）。
 
 services:
+  audiveris-worker:
+    ports:
+      # 只綁 127.0.0.1 —— 綁 0.0.0.0 等於把一個沒有認證、整段佔用 CPU 的端點
+      # 掛到同網段所有人面前。
+      #
+      # ⚠️ **8081 是站台設定裡寫的那個 port**（appsettings 的 Omr:WorkerUrl）。
+      # 兩個 worker 共用它是刻意的：切換引擎不必動站台的設定，只要換啟動哪一個。
+      - "127.0.0.1:8081:8080"
+    networks: [omr-internal, omr-dev]
+
+  # 備選引擎。只有 `--profile fallback` 時才會起來（見 docker-compose.yml）。
+  # ⚠️ 它跟 audiveris-worker **搶同一個 8081** —— 兩個一起跑會撞 port，那是刻意的：
+  # 站台同時只該連到一個引擎。
   homr-worker:
     ports:
-      # 只綁 127.0.0.1 —— 綁 0.0.0.0 等於把一個沒有認證、單頁吃 20 秒 CPU 的
-      # 端點掛到同網段所有人面前。
       - "127.0.0.1:8081:8080"
     networks: [omr-internal, omr-dev]
 

@@ -1,0 +1,10 @@
+# 全部 pin 到 ==，理由見 spec §6：build 要可重現。
+#
+# 這個 worker **沒有 Python 的引擎相依** —— Audiveris 是 Java，透過 subprocess 呼叫
+# （版本由 Dockerfile 的 ARG pin，連 checksum 一起）。所以這裡只有 web 框架，
+# image 因此比 homr-worker 小得多（約 400 MB 對 1.51 GB）。
+#
+# `.mxl` 是 zip 過的 MusicXML，用標準庫的 zipfile 解就夠，不需要額外套件。
+fastapi==0.141.1
+uvicorn==0.52.4
+python-multipart==0.0.32
