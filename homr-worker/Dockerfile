@@ -1,7 +1,10 @@
 # homr-worker
 #
-# homr 0.7.0 跑 **onnxruntime，不是 torch**，所以這個 image 是幾百 MB 級的
-# （權重 157 MB + OCR 權重 32 MB + 相依），不是 spec 假設的幾 GB。
+# homr 0.7.0 跑 **onnxruntime，不是 torch**。實際 build 出來是 **1.51 GB**
+# —— 比 spec 假設的「幾 GB」小，但也不是原本這行寫的「幾百 MB」。權重本身只佔
+# 157 MB（build 時那個 .onnx 驗證步驟會印出來），大的是 onnxruntime 與**兩份
+# opencv**（見下面 libgl1 那段：build log 證實 opencv-python 5.0.0.93 非 headless
+# 版 73.8 MB 確實被一起拉下來）。
 #
 # 模型在 **build 階段**烘進 image，runtime 完全不連網（compose 的 internal network
 # ＋ 正式機上 Hyper-V 的 internal switch）。

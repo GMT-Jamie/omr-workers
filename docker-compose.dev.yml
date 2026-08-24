@@ -1,5 +1,8 @@
-# 開發用的 override。**只在開發機上用**（Win11 + Docker Desktop）。
+# 開發用的 override。**只在開發機上用**（Win11 → WSL2 → Ubuntu 24.04 + 純 docker
+# engine，**沒有 Docker Desktop**；理由與實裝版本見 TODO.md 的 M1）。
 #
+#   # 在 WSL 裡面跑，不是 Git Bash：含中文的路徑當參數傳給 wsl.exe 會編碼壞掉
+#   cd "/mnt/c/path/to/omr-workers"
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 #
 # 它做兩件正式組態刻意不做的事：把 port 映射到 host（smoke_test.sh 要打得到），
