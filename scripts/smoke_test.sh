@@ -75,6 +75,36 @@ req -F "file=@$TMP/smoke.txt" "$BASE/transcribe"
 [ "$CODE" = 400 ] && ok "400" || bad "預期 400，得到 $CODE"
 [ "$(field error_code)" = INVALID_INPUT ] && ok "INVALID_INPUT" || bad "error_code=$(field error_code)"
 
+head1 "POST /transcribe：合法的圖但上面沒有五線譜 → 422，而且訊息要是人話"
+# ⚠️ **這一項守的是「訊息長什麼樣」，不是狀態碼。**
+#
+# 使用者傳錯檔案是最常見的失敗，而在加這道守衛之前他看到的是一段 Java stack trace
+# 加一個容器內的暫存路徑（`/tmp/audiveris-xxxx/out/page.omr`）—— 因為失敗訊息取的是
+# 引擎輸出的**最後** 2000 字，而 Audiveris 真正的診斷在**最上面**。
+#
+# ⚠️ 那種壞法**光看狀態碼看不出來**：HTTP 422 是對的、error_code 是對的，只有
+# message 是垃圾。所以下面除了狀態碼，還要斷言訊息裡沒有引擎內部細節。
+#
+# 全白的圖就夠觸發（實測整頁文字、照片雜訊、全白三種走的都是同一條路徑）。
+# 就地生成，不進版控 —— 這個 repo 不放樣本圖。
+"$PYBIN" -c "import zlib,struct,sys;w,h=1200,1600;raw=b''.join(b'\x00'+b'\xff'*w for _ in range(h));ck=lambda t,d:struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff);open(sys.argv[1],'wb').write(b'\x89PNG\r\n\x1a\n'+ck(b'IHDR',struct.pack('>IIBBBBB',w,h,8,0,0,0,0))+ck(b'IDAT',zlib.compress(raw,9))+ck(b'IEND',b''))" "$TMP/smoke_blank.png"
+req -F "file=@$TMP/smoke_blank.png" "$BASE/transcribe"
+[ "$CODE" = 422 ] && ok "422" || bad "預期 422，得到 $CODE"
+[ "$(field error_code)" = RECOGNITION_FAILED ] && ok "RECOGNITION_FAILED" || bad "error_code=$(field error_code)"
+msg=$(field message)
+case "$msg" in
+  *org.audiveris*|*.java:*|*/tmp/*)
+    bad "訊息裡有引擎內部細節：$(printf '%.90s' "$msg")…" ;;
+  "")
+    bad "沒有 message" ;;
+  *)
+    if [ "${#msg}" -lt 200 ]; then
+      ok "訊息是人話（${#msg} 字）：$msg"
+    else
+      bad "訊息 ${#msg} 字，像是整段原始引擎輸出"
+    fi ;;
+esac
+
 if [ -z "$IMG" ]; then
   head1 "略過辨識與併發測試"
   echo "    沒給樣本圖。用法：scripts/smoke_test.sh /path/to/page.png"

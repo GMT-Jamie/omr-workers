@@ -72,6 +72,27 @@ _STDERR_CAP = 2000
 # $HOME，runtime 的 HOME 指到 tmpfs，build 階段寫進去的東西執行時不在那裡。
 _TESSDATA = Path(os.environ.get("TESSDATA_PREFIX", "/opt/tessdata"))
 
+# 「這張圖上沒有五線譜」。**這是使用者最容易踩到的失敗**（傳錯檔案、翻拍太糊、
+# 解析度太低），所以它值得一句人話而不是一段 stack trace。
+#
+# Audiveris 自己把原因講得很清楚，而且正好就是使用者能自己處理的那兩件事：
+#
+#     WARN [x] SheetStub 411 | With a too low interline value of 2 pixels,
+#     either this sheet contains no multi-line staves, or the picture
+#     resolution is too low (try 300 DPI). This interline value is NOT RELIABLE!
+#     INFO [x] SheetStub 1194 | Sheet x flagged as invalid.
+#     Caused by: StepException: Sheet ignored
+#
+# ⚠️ **那段話在輸出的最上面，而失敗訊息取的是最後 2000 字** —— 所以在加這條之前，
+# 使用者拿到的是被截斷剩下的 stack frame 加一個容器內的暫存路徑，真正的診斷剛好
+# 被切掉。實測整頁文字、照片雜訊、全白三種圖走的都是這條路徑。
+#
+# 三個樣式都留著：`interline` 是診斷本身，另外兩個是同一件事在 log 上的其他說法
+# （不同的圖會停在不同的地方）。
+_NO_STAVES = re.compile(
+    r"too low interline value|flagged as invalid|StepException: Sheet ignored"
+)
+
 
 class RecognitionFailed(RuntimeError):
     """引擎跑完了但沒有產出可用的 MusicXML → 422。"""
@@ -211,6 +232,16 @@ def transcribe(
 
         musicxml = _read_export(outdir)
         if musicxml is None:
+            # 先問「是不是根本沒有五線譜」。這是使用者最常踩到的失敗,而且是他自己
+            # 修得掉的 —— 換一張圖就好。⚠️ 下面那個退路會吐一整段引擎輸出,對他
+            # 沒有任何意義,所以這一條要擋在它前面。
+            if any(s and _NO_STAVES.search(s) for s in (proc.stdout, proc.stderr)):
+                raise RecognitionFailed(
+                    "這張圖裡找不到五線譜 —— 可能不是樂譜，"
+                    "或是解析度太低（Audiveris 建議 300 DPI 以上）"
+                )
+            # 沒認出來的失敗才留原始輸出。**這一段是給維運看的,不是給使用者看的** ——
+            # 呼叫端（3ml 站台）對認得的錯誤碼會顯示自己的多語系字串,把這串丟進日誌。
             tail = (proc.stderr or proc.stdout or "").strip()[-_STDERR_CAP:]
             raise RecognitionFailed(
                 f"Audiveris 結束碼 {proc.returncode}，沒有產出 MusicXML。輸出尾段：{tail}"
