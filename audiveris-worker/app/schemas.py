@@ -1,7 +1,7 @@
 """回應與錯誤的模型。
 
-契約定義在 3ml 的 `docs/omr-workers-spec.md` §3，兩個 worker 完全相同 —— 呼叫端
-（3ml 的 ASP.NET 後端）不應該需要知道背後是哪個引擎。
+兩個 worker 完全相同 —— 呼叫端（一個 ASP.NET 後端）不應該需要知道背後是哪個
+引擎。公開版的契約見 README 的〈HTTP 介面〉。
 """
 
 from __future__ import annotations

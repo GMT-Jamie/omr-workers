@@ -1,8 +1,9 @@
 # 開發用的 override。**只在開發機上用**（Win11 → WSL2 → Ubuntu 24.04 + 純 docker
-# engine，**沒有 Docker Desktop**；理由與實裝版本見 TODO.md 的 M1）。
+# engine，**沒有 Docker Desktop** —— 純 engine 跟正式機同形狀，不會出現
+# 「開發機用 Desktop 驗綠、正式機沒 Desktop 又踩一次」）。
 #
 #   # 在 WSL 裡面跑，不是 Git Bash：含中文的路徑當參數傳給 wsl.exe 會編碼壞掉
-#   cd "/mnt/c/path/to/omr-workers"
+#   cd /mnt/c/path/to/omr-workers
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 #
 # ⚠️ **`ports` 在 compose 裡預設是相加的，不是覆寫的。** base 已經有一條

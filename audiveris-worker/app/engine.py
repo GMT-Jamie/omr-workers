@@ -241,7 +241,7 @@ def transcribe(
                     "或是解析度太低（Audiveris 建議 300 DPI 以上）"
                 )
             # 沒認出來的失敗才留原始輸出。**這一段是給維運看的,不是給使用者看的** ——
-            # 呼叫端（3ml 站台）對認得的錯誤碼會顯示自己的多語系字串,把這串丟進日誌。
+            # 呼叫端對認得的錯誤碼會顯示自己的多語系字串,把這串丟進日誌。
             tail = (proc.stderr or proc.stdout or "").strip()[-_STDERR_CAP:]
             raise RecognitionFailed(
                 f"Audiveris 結束碼 {proc.returncode}，沒有產出 MusicXML。輸出尾段：{tail}"
