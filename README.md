@@ -148,8 +148,27 @@ BASE=http://192.168.1.5:8081 scripts/smoke_test.sh page.png   # 打別台
 ### `GET /health`
 
 ```json
-{ "status": "ok", "engine": "audiveris", "engine_version": "5.11.0", "ready": true }
+{
+  "status": "ok",
+  "engine": "audiveris",
+  "engine_version": "5.11.0",
+  "build": "2026-08-27T01:42:11Z",
+  "patches": ["single-bar-repeat"],
+  "ready": true
+}
 ```
+
+**`engine_version` 不能拿來確認部署。** 那是 Audiveris 自己的版本，我們的補丁
+（見〈我們改過 Audiveris〉）不會動它 —— 打過補丁與沒打過的 image 在那個欄位上完全
+相同。更新之後要看的是另外兩個：
+
+- `build` —— image 的 build 時間。**沒變就是這台根本沒換 image**（容器沒重建，
+  或 `--build` 整個 cache 命中）。
+- `patches` —— **實際生效**的補丁。查的是 class 檔在不在、classpath 有沒有真的指
+  過去，不是一個寫死的字串（寫死的在「舊 image 重新打了新標籤」時會說謊）。空陣列
+  = 跑的是原封不動的上游 Audiveris，起始反覆 `|:` 會整批消失。
+
+補丁之前的舊 image 沒有這兩個欄位，`build` 會回 `"unknown"` —— 那本身就是答案。
 
 `ready` 的語意是 **「引擎可執行 + 模型／OCR 資料在 image 裡」**，不是「模型已載入
 記憶體」。兩個 worker 都走 subprocess，每個請求是一個新行程（audiveris 是新的 JVM），

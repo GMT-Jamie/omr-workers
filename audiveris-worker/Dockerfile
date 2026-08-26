@@ -172,6 +172,17 @@ RUN /opt/audiveris/bin/Audiveris -version 2>&1 | tee /tmp/ver.txt \
 
 COPY app ./app
 
+# ─── build 指紋 ───
+#
+# `/health` 的 `build` 欄位就是這個檔（理由見 app/engine.py 的〈image 指紋〉）。
+#
+# 放在最後一層，於是**上面任何一層變了它就重跑**；全部 cache 命中時時間戳不動，
+# 而那正是實話 —— 沒有東西變過，這就是同一個 image。
+#
+# 不用 `ARG BUILD_DATE` 是因為 ARG 要部署的人記得在命令列上傳，而那個「記得」
+# 正是這個欄位要消滅的東西。
+RUN date -u +%Y-%m-%dT%H:%M:%SZ > /srv/BUILD_ID
+
 # ─── non-root ───
 RUN useradd --system --no-create-home --uid 10001 worker \
     && chown -R worker:worker /srv

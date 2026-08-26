@@ -31,6 +31,22 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     engine: str
     engine_version: str
+    build: str = Field(
+        default="unknown",
+        description=(
+            "image 的 build 時間（UTC ISO-8601）。**更新正式機之後先看這個欄位有沒有"
+            "變** —— `engine_version` 是 Audiveris 自己的版本，兩個不同的 image 在"
+            "那個欄位上長得一模一樣。`unknown` = 這個 image 舊到還沒有指紋。"
+        ),
+    )
+    patches: list[str] = Field(
+        default_factory=list,
+        description=(
+            "**實際生效**的 Audiveris 補丁 id（查出來的，不是寫死的，見 "
+            "`engine.patches()`）。空的就表示這個 image 跑的是原封不動的上游 "
+            "Audiveris —— 例如起始反覆 `|:` 會整批消失。"
+        ),
+    )
     ready: bool
 
 

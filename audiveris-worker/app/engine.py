@@ -156,6 +156,67 @@ def ready() -> bool:
     return find_binary() is not None and ocr_ready()
 
 
+# ─── image 指紋 ──────────────────────────────────────────────────────────────
+#
+# **`engine_version` 分辨不出兩個不同的 image。** 它是 Audiveris 自己的版本
+# （`-version` 印的 5.11.0），而我們的補丁是編一個 class 蓋在 classpath 前面 ——
+# 它不會、也不該去動上游的版本字串。於是打過補丁與沒打過的 image，`/health` 的
+# 每一個欄位都一模一樣。
+#
+# 踩過的實際情形：正式機更新完之後症狀完全沒變（一份 21 小節、m5–m12 反覆的譜還是
+# 播成 33 小節而不是 29），而手上沒有任何東西可以分辨這三種可能 —— **補丁沒生效**、
+# **image 沒重建**、還是**容器沒換成新 image**。下面兩個函式各回答一個。
+
+_BUILD_ID = Path("/srv/BUILD_ID")
+
+# 這個 image **應該**有的補丁：id → 它編出來的 class（相對於 patch 目錄）。
+# 加補丁的時候這裡要跟著加一條，否則 `/health` 會漏報它。
+_PATCHES = {
+    "single-bar-repeat": "org/audiveris/omr/sig/inter/StaffBarlineInter.class",
+}
+
+_PATCH_DIR = Path("/opt/audiveris/lib/app/patch")
+
+# jpackage 的啟動設定。補丁目錄必須插在 `audiveris.jar` **前面**才會優先載入，
+# 所以「class 檔在」本身不構成「補丁生效」—— 見 Dockerfile 的〈補丁〉那一段。
+_CFG = Path("/opt/audiveris/lib/app/Audiveris.cfg")
+
+_CLASSPATH_LINE = "app.classpath=$APPDIR/patch"
+
+
+def build_id() -> str:
+    """這個 image 是什麼時候 build 的（UTC ISO-8601）。
+
+    **不快取**：讀一個幾十 bytes 的檔案比記一個永遠不變的值划算，而 `/health`
+    本來就不是熱路徑。讀不到回 `"unknown"` 而不是丟例外 —— 補丁之前的舊 image
+    沒有這個檔，而「舊到連指紋都沒有」本身就是一個有用的答案。
+    """
+    try:
+        return _BUILD_ID.read_text(encoding="utf-8").strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
+def patches() -> list[str]:
+    """**實際生效**的補丁 id，照字母序。
+
+    ⚠️ 這不是一份寫死的清單，是**查出來的**：class 檔在、而且 classpath 真的指到
+    patch 目錄，兩個條件都成立才算數。寫死的字串在「有人把舊 image 重新打了一個新
+    標籤」的時候會說謊，而那正是這個欄位存在要分辨的情況之一。
+
+    classpath 那一行不見時回空清單，而不是照樣把 class 檔列出來：檔案躺在那裡但
+    沒有人載它，效果跟沒有補丁完全相同，而「檔案在」會把查的人引去錯的方向。
+    """
+    try:
+        wired = any(line.strip() == _CLASSPATH_LINE
+                    for line in _CFG.read_text(encoding="utf-8").splitlines())
+    except OSError:
+        return []
+    if not wired:
+        return []
+    return sorted(pid for pid, cls in _PATCHES.items() if (_PATCH_DIR / cls).is_file())
+
+
 _version_cache: str | None = None
 
 

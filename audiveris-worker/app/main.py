@@ -109,10 +109,14 @@ async def lifespan(app: FastAPI):
     # 「模型已載入」。Audiveris 單頁只要 4 秒，JVM 冷啟動已經含在裡面了，沒有
     # 「改成常駐」的動機（homr 那邊量過同一題，結論也是不改，見它的 engine.py）。
     _state["ready"] = engine.ready()
+    # build 與 patches 也進啟動日誌：`docker logs` 是查「這台跑的是哪個 image」
+    # 最快的一條路，不必先問得到 /health 通不通。
     _log(
         "started",
         engine=engine.ENGINE,
         engine_version=engine.engine_version(),
+        build=engine.build_id(),
+        patches=",".join(engine.patches()) or "none",
         ready=_state["ready"],
         job_timeout_sec=JOB_TIMEOUT_SEC,
         max_concurrency=MAX_CONCURRENCY,
@@ -150,6 +154,8 @@ async def health() -> HealthResponse:
     return HealthResponse(
         engine=engine.ENGINE,
         engine_version=engine.engine_version(),
+        build=engine.build_id(),
+        patches=engine.patches(),
         ready=bool(_state["ready"]),
     )
 
