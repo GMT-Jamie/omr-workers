@@ -238,7 +238,7 @@ async def transcribe(
         # ── 魔術位元組。副檔名可以說謊，而說謊的代價是唯一那個工作位（見 _MAGIC） ──
         if not data.startswith(_MAGIC):
             done("bad_magic", bytes=size)
-            return _error(400, ErrorCode.INVALID_INPUT, "檔案內容不是 PNG 或 JPEG")
+            return _error(400, ErrorCode.INVALID_INPUT, "檔案內容不是 PNG、JPEG 或 PDF")
 
         # ── 推論。subprocess 是阻塞的，丟到執行緒池，不然會卡住整個 event loop
         #     （於是連 /health 都不回應，而監控會判定容器死了） ──

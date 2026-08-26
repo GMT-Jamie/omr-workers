@@ -84,6 +84,16 @@ services:
   #
   # 要啟用：把下面的 profiles 那兩行拿掉，或跑
   #   docker compose --profile fallback up -d
+  #
+  # 🔴 **切上去之前要順手改呼叫端的文案。** homr **不吃 PDF**（見 README 的
+  # 〈POST /transcribe〉），而呼叫端現在的四個語系都在告訴使用者「有 PDF 就直接
+  # 傳 PDF 最好」—— 切過來之後每一份 PDF 都會拿到 400 INVALID_INPUT，而使用者
+  # 剛剛才被我們建議那樣做。
+  #
+  # 沒有做自動偵測是刻意的：呼叫端要靠 /health 的 engine 欄位決定 UI，就得處理
+  # 「啟動那一刻連不到 worker」（VM 還沒開）的情況，否則會永久判定不支援 PDF 直到
+  # 重啟。為一個目前停用、而且由人工決定要不要啟用的引擎寫那套機制不值得 ——
+  # 換引擎的人就是我們自己，所以這裡留一行字，不留一套機制。
   homr-worker:
     profiles: ["fallback"]
     build: ./homr-worker

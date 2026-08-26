@@ -265,8 +265,25 @@ def _read_export(outdir: Path) -> str | None:
     ⚠️ **主檔名要照 `META-INF/container.xml` 讀，不要猜。** 它目前確實叫
     `<book>.xml`，但那是 zip 內部的實作細節，而 MusicXML 的 `.mxl` 規格本來就規定
     用 container.xml 指路。猜錯的症狀是「辨識成功但回傳空字串」。
+
+    ⚠️ **多個 `.mxl` 要明確失敗，不能只回第一個。** Audiveris 對多樂章的 book 會
+    吐 `<book>.mvt1.mxl`、`<book>.mvt2.mxl`，而「回第一個」的症狀是**安靜地只拿到
+    第一樂章** —— 回傳的 MusicXML 完全合法，呼叫端與使用者都看不出少了一半。
+
+    實測：一份**七頁**的 PDF（單樂章）只吐一個 `score7.mxl`，所以正常的多頁 PDF
+    不會走到這一條。多樂章的情況沒有樣本可測，因此選擇「講出來」而不是猜。
+
+    **也不在這裡合併。** 合併 MusicXML 是縫合（part-list 要對、divisions 可能不同、
+    小節要重編號），而縫合的正本在呼叫端的 `musicxml-in.js` —— 在這裡寫第二份
+    等於在授權邊界的另一邊放一份會漂移的邏輯（見 README 的〈AGPL 邊界〉）。
     """
-    for mxl in sorted(outdir.glob("*.mxl")):
+    mxls = sorted(outdir.glob("*.mxl"))
+    if len(mxls) > 1:
+        raise RecognitionFailed(
+            f"這份樂譜被判成 {len(mxls)} 個樂章，請把樂章分開上傳"
+        )
+
+    for mxl in mxls:
         try:
             with zipfile.ZipFile(mxl) as zf:
                 inner = _rootfile_of(zf)
