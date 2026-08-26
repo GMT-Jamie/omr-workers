@@ -1,0 +1,80 @@
+--- a/StaffBarlineInter.java
++++ b/StaffBarlineInter.java
+@@ -757,6 +757,37 @@
+         return systemBarline;
+     }
+ 
++    //----------------//
++    // dotCountOnSide //
++    //----------------//
++    /**
++     * Count the repeat dots that lie on the provided side of this bar.
++     * <p>
++     * Used to decide whether a <b>single</b> barline carries a repeat sign: a real repeat
++     * always prints a pair of dots, so a lone dot is not enough evidence.
++     *
++     * @param right true for the right side, false for the left side
++     * @return the number of repeat dots found on that side
++     */
++    private int dotCountOnSide (boolean right)
++    {
++        final Point center = getCenter();
++        int count = 0;
++
++        for (Inter bar : getMembers()) {
++            for (Relation rel : sig.getRelations(bar, RepeatDotBarRelation.class)) {
++                final Inter dot = sig.getOppositeInter(bar, rel);
++                final boolean onRight = dot.getCenter().x > center.x;
++
++                if (onRight == right) {
++                    count++;
++                }
++            }
++        }
++
++        return count;
++    }
++
+     //---------------//
+     // hasDotsOnLeft //
+     //---------------//
+@@ -893,6 +924,19 @@
+         getStyle();
+ 
+         return switch (size) {
++            case 1 -> { // Heavy and light strokes printed with no gap: they merged into one bar
++                if (dotCountOnSide(true) < 2) {
++                    yield false;
++                }
++
++                if (style != HEAVY_LIGHT) {
++                    style = HEAVY_LIGHT;
++                    ((BarlineInter) bars.get(0)).setShape(Shape.THICK_BARLINE);
++                }
++
++                yield true;
++            }
++
+             case 2 -> { // Style should be HEAVY_LIGHT
+                 if (style != HEAVY_LIGHT) {
+                     final BarlineInter b1 = (BarlineInter) bars.get(0);
+@@ -941,6 +985,19 @@
+         getStyle();
+ 
+         return switch (size) {
++            case 1 -> { // Light and heavy strokes printed with no gap: they merged into one bar
++                if (dotCountOnSide(false) < 2) {
++                    yield false;
++                }
++
++                if (style != LIGHT_HEAVY) {
++                    style = LIGHT_HEAVY;
++                    ((BarlineInter) bars.get(0)).setShape(Shape.THICK_BARLINE);
++                }
++
++                yield true;
++            }
++
+             case 2 -> { // Style should be LIGHT_HEAVY
+                 if (style != LIGHT_HEAVY) {
+                     final BarlineInter b1 = (BarlineInter) bars.get(0);

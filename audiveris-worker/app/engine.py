@@ -17,6 +17,9 @@
 - `MeasureFixer` 會在 log 上宣布哪些小節的時值湊不出一個完整小節。那是這個引擎
   唯一會講出來的靜默資料問題，要撈出來當 warnings。
 - 它**不吃 stdin**，只吃檔案路徑；輸出目錄要自己給。
+- **反覆記號兩個方向都會出**（`<repeat direction="forward">` 與 `"backward"`）。
+  ⚠️ 原版的 `forward` 在某些排版上會整批消失 —— image 裡打了補丁，見 Dockerfile
+  的〈補丁〉那一段。**別依賴上游未修改的 Audiveris 有這個行為。**
 
 ## 跟 homr 的實測對照（同一批三頁鋼琴譜，66 小節）
 

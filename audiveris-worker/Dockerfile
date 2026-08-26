@@ -49,6 +49,82 @@ RUN mkdir -p /usr/share/desktop-directories \
     && apt-get install --no-install-recommends -y /tmp/audiveris.deb \
     && rm -rf /tmp/audiveris.deb /var/lib/apt/lists/*
 
+# ─── 補丁：認不出「起始反覆」`|:` ───
+#
+# 症狀是**整段反覆只播一遍**。實測一份四聲部三頁譜（樣本不在版控，理由見 README
+# 的〈測試腳本〉）第 5 小節四個聲部都印著 `|:`，匯出的 MusicXML 裡
+# `<repeat direction="forward">` **一個都沒有**（結尾 `:|` 的四個 backward 倒是都在），
+# 於是下游只能照著譜面順序播完，聽起來就是少了一整段。
+#
+# ⚠️ **問題不在辨識。** Audiveris 其實把那對反覆點看得清清楚楚 —— `.omr` 裡
+# 16 個 `REPEAT_DOT`、16 條 `RepeatDotBarRelation` 全都連到正確的 barline
+# （grade 0.8 / ctx-grade 0.97）。丟掉它的是導出前的一個判斷：
+# `StaffBarlineInter.isLeftRepeat()` 規定一個 StaffBarline 要有 **2 根或 3 根**
+# 小節線才算反覆記號，只有 1 根就 `default -> false`。
+#
+# 而這份譜的 `|:` **粗線與細線是印在一起的，中間沒有白邊**。實測像素（interline
+# 21 px）：
+#
+#     M5  的 `|:`   x=375..389 連續 15 px 全黑，然後才是兩個點  ← 一根
+#     M12 的 `:|`   細 4 px、空 1 px、粗 11 px                   ← 兩根
+#
+# 二值化之後前者就是**一根** 15 px 寬的線（11+4，剛好是後者兩根加起來）。而
+# `BarsRetriever.partitionWidths()` 對「孤立的一根線」一律標成 THIN —— 那不是
+# 誤判，是上游原始碼裡寫著 TODO 的已知簡化。所以既湊不出粗細成對、數量也只有 1，
+# 兩個條件同時不成立。
+#
+# 補丁只加一條規則：**一根小節線 + 那一側有一對反覆點 = 反覆記號**（左右對稱）。
+# 反覆點永遠成對印，所以要求 **2 個**而不是 1 個，就足以擋掉「普通小節線旁邊剛好
+# 有個雜點」的誤判。粗細分不出來這件事上游自己也承認 —— 那兩個方法的註解都寫著
+# "we can't be too strict on thin/thick difference" —— 補丁沿用同一個態度。
+#
+# 實測（同一份三頁譜）：`forward` 0 → 4，其餘輸出**逐行相同**，只有 M5 那四條
+# `<bar-style>` 從 `regular` 變成 `heavy`。
+#
+# ⚠️ **這是我們對 Audiveris 的修改，AGPL §5(a) 要求標示。** 修改內容就是
+# patches/ 底下那份 diff（80 行），README 的〈我們改過 Audiveris〉也記了一筆。
+#
+# 作法是**只編一個檔案、蓋在 classpath 前面**，不重編整個 Audiveris：jpackage 的
+# `Audiveris.cfg` 就是一串 `app.classpath=`，把 patch 目錄插在 `audiveris.jar`
+# **前面**就會優先載入。上面那個 .deb 的 pin + checksum 因此原封不動。
+#
+# ⚠️ **javac 一定要 25。** 上游的 class 檔是 major 69（Java 25，jpackage 自帶的
+# runtime 也是 Zulu 25），javac 21 讀不了它們，錯誤訊息會是看不懂的
+# `bad class file`。noble-updates/universe 剛好有 openjdk-25-jdk-headless，
+# 不需要外部 apt 來源；裝完在**同一層** purge 掉，所以 image 不會胖。
+#
+# 檔案 checksum 跟 .deb 同一個理由：GitHub 的 tag 是可以搬的。上游改了這個檔，
+# 這裡就會在 build 當場爆掉（checksum 或 patch 其中之一），而不是安靜地回到
+# 「反覆記號不見」的舊行為。
+ARG STAFFBARLINE_SHA256=632c21b282dfa366ad7a3c13e5d10f0c337b54acb4c648f68416a9a2c59152f5
+COPY patches/single-bar-repeat.patch /tmp/patches/
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y openjdk-25-jdk-headless patch \
+    && curl -fsSL -o /tmp/StaffBarlineInter.java \
+        "https://raw.githubusercontent.com/Audiveris/audiveris/${AUDIVERIS_VERSION}/app/src/main/java/org/audiveris/omr/sig/inter/StaffBarlineInter.java" \
+    && echo "${STAFFBARLINE_SHA256}  /tmp/StaffBarlineInter.java" | sha256sum -c - \
+    # 上游那個檔是 CRLF，而 .gitattributes 把這個 repo 一律正規化成 LF —— 兩邊
+    # 不一致的話 patch 會說 "malformed patch"。先拉平再套。
+    && sed -i 's/\r$//' /tmp/StaffBarlineInter.java \
+    && patch --silent /tmp/StaffBarlineInter.java < /tmp/patches/single-bar-repeat.patch \
+    && mkdir -p /opt/audiveris/lib/app/patch \
+    && javac -nowarn -encoding UTF-8 \
+        -cp "/opt/audiveris/lib/app/*" \
+        -d /opt/audiveris/lib/app/patch \
+        /tmp/StaffBarlineInter.java \
+    # `0,/^app.classpath=/` 只換**第一個**符合的地方，所以 patch 目錄會插在
+    # audiveris.jar 前面 —— 順序就是優先權，插錯位置等於整個補丁沒作用。
+    && sed -i "0,/^app.classpath=/s||app.classpath=\$APPDIR/patch\napp.classpath=|" \
+        /opt/audiveris/lib/app/Audiveris.cfg \
+    # 兩條都要驗：class 真的編出了新方法、cfg 真的排在第一順位。
+    # 少了它們，補丁沒生效的症狀就只是「反覆記號還是不見」——跟沒改之前一模一樣。
+    && grep -q dotCountOnSide \
+        /opt/audiveris/lib/app/patch/org/audiveris/omr/sig/inter/StaffBarlineInter.class \
+    && grep -qx 'app.classpath=\$APPDIR/patch' /opt/audiveris/lib/app/Audiveris.cfg \
+    && apt-get purge -y openjdk-25-jdk-headless patch \
+    && apt-get autoremove -y \
+    && rm -rf /tmp/StaffBarlineInter.java* /tmp/patches /var/lib/apt/lists/*
+
 # ─── OCR 語言資料 ───
 #
 # 放在唯讀的 /opt 而不是 $HOME —— runtime 的 rootfs 是唯讀的、HOME 指到 /tmp，

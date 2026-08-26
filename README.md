@@ -38,7 +38,7 @@ ABC / MML 的轉換。滿載時它直接回 `429`，由你決定要不要重試�
 
 | worker | 引擎 | 輸入 | 單頁 | image | 上游授權 |
 |---|---|---|---|---|---|
-| **`audiveris-worker`**（預設） | [Audiveris](https://github.com/Audiveris/audiveris) 5.11.0 | `png` `jpg` **`pdf`** | **4～8 秒** | 803 MB | AGPL-3.0 |
+| **`audiveris-worker`**（預設） | [Audiveris](https://github.com/Audiveris/audiveris) 5.11.0 | `png` `jpg` **`pdf`** | **4～8 秒** | 805 MB | AGPL-3.0 |
 | `homr-worker`（備選） | [homr](https://github.com/liebharc/homr) 0.7.0 | `png` `jpg` | 13～96 秒 | 1.51 GB | AGPL-3.0 |
 
 同一批三頁鋼琴譜（66 小節、乾淨數位排版）的實測對照：
@@ -69,6 +69,21 @@ ABC / MML 的轉換。滿載時它直接回 `429`，由你決定要不要重試�
 如果你把這些 worker 架起來對外提供服務，**AGPL §13 的義務會落在你身上**：使用者
 （包含只是透過你的網站間接用到它的人）有權取得對應的完整原始碼，包括你自己改過的部分。
 那個義務在**你開始提供服務的那一刻**觸發。
+
+### 我們改過 Audiveris（AGPL §5(a)）
+
+`audiveris-worker` 的 image 裡跑的 Audiveris **不是原封不動的 5.11.0**。修改一共
+一個檔案、80 行 diff，就放在
+[`audiveris-worker/patches/single-bar-repeat.patch`](audiveris-worker/patches/single-bar-repeat.patch)，
+build 的時候套上去（見 Dockerfile 裡的〈補丁〉那一段，也在那裡說明了原因）。
+
+修的是**起始反覆 `|:` 認不出來**：粗線與細線印在一起、中間沒有白邊的譜（實測是
+一根 15 px 寬的線，而不是 4+1+11 三段），Audiveris 會因為「只有一根小節線」而
+放棄，即使它已經正確辨識出旁邊那對反覆點。症狀是整段反覆只播一遍。補丁加的規則
+是「一根小節線 + 那一側有一對反覆點 = 反覆記號」。
+
+上游的 `.deb` 本身仍然是**原版**（pin + checksum 沒動），補丁是編成一個 class 蓋在
+classpath 前面的。
 
 ### 呼叫端不會因此被感染
 
@@ -420,4 +435,7 @@ The prose is in Traditional Chinese, but the HTTP contract, error codes, and env
 variables are all in the tables above.
 
 **AGPL-3.0** — both engines are AGPL, so this is too. If you run it as a network service,
-§13 applies to you.
+§13 applies to you. Audiveris is shipped **modified**: one file, an 80-line diff in
+[`audiveris-worker/patches/`](audiveris-worker/patches/single-bar-repeat.patch), applied
+at build time so that a forward repeat `|:` whose heavy and light strokes are printed
+without a gap is still recognised.
